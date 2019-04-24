@@ -6,6 +6,7 @@
 #include <sstream>
 #include <list>
 #include <string>
+#include <vector>
 
 using namespace std;
 
@@ -70,6 +71,11 @@ public:
 	}
 };
 
+struct average{
+	double value;
+	int rowIndex;
+	int colIndex;
+};
 
 
 // function takes an array pointer, and the number of rows and cols in the array, and 
@@ -130,9 +136,9 @@ int main( int argc, char* argv[] )
 {
 	if( argc < 3 )
 	{
-		cerr<<"Usage: " << argv[0] << " [input data file] [num of threads to use] " << endl;
+		cerr<<"usage: " << argv[0] << " [input data file] [num of threads to use] " << endl;
 		
-		cerr<<"or" << endl << "Usage: "<< argv[0] << " rand [num of threads to use] [num rows] [num cols] [seed value]" << endl;
+		cerr<<"or " << "usage: "<< argv[0] << " rand [num of threads to use] [num rows] [num cols] [seed value]" << endl;
                 exit( 0 );
         }
 	
@@ -147,7 +153,7 @@ int main( int argc, char* argv[] )
 		ss1 >> numThreads;
 	}
 	
-	string fName( argv[1] );
+	string fName = argv[1];
 	if( fName == "rand" )
 	{
 		{
@@ -172,141 +178,226 @@ int main( int argc, char* argv[] )
 		getDataFromFile( data,  argv[1], rows, cols );
 	}
 	
-		cerr << "data: " << endl;
-	 for( unsigned int i = 0; i < rows; i++ )
-	 {
-	 for( unsigned int j = 0; j < cols; j++ )
-	 {
-	 cerr << "i,j,data " << i << ", " << j << ", ";
-	 cerr << data[i][j] << " ";
-	 }
-	 cerr << endl;
-	 }
-	 cerr<< endl;
+		//cerr << "data: " << endl;
+	 //for( unsigned int i = 0; i < rows; i++ )
+	 //{
+	 //for( unsigned int j = 0; j < cols; j++ )
+	 //{
+	 //cerr << "i,j,data " << i << ", " << j << ", ";
+	 //cerr << data[i][j] << " ";
+	 //}
+	 //cerr << endl;
+	 //}
+	 //cerr<< endl;
 	
 	// tell omp how many threads to use
 	omp_set_num_threads( numThreads );
 	
-#pragma omp parallel
-	{
-	}
-	
+
 	stopwatch S1;
 	S1.start();
 
+	vector<average> avgs;					//Vector for holding averages
+#pragma omp parallel
+	{
+		for(int a = 0; a < rows; a++){
+				for(int b = 0; b < cols; b++){				//b = x coordinate, a = y coordinate (this comment is to aid logical mental conception)
+					if(a==0&&b==0){
+						//cout << "ul\t";//upper left
+						average tempUL;
+							
+							tempUL.value = (double)(data[b+1][a] + data[b+1][a+1] + data[b][a+1]) / 3;	//Calculate average
+							tempUL.rowIndex = a;
+							tempUL.colIndex = b;
+
+						#pragma omp critical(write)
+						{
+							avgs.push_back(tempUL);
+						}
+					}
+					else if(a==0&&b!=0&&b!=cols-1){
+						//cout << "us\t";//upper side
+						average tempUS;
+
+							tempUS.value = (double)(data[b+1][a] + data[b+1][a+1] + data[b][a+1] + data[b-1][a+1] + data[b-1][a]) / 5;	//FIXME: breaking at this line (index out of bounds?)
+							tempUS.rowIndex = a;
+							tempUS.colIndex = b;
+						
+						#pragma omp critical(write)
+						{
+							avgs.push_back(tempUS);
+						}
+					}
+					else if(a==0&&b==cols - 1){
+						//cout << "ur\t";//upper right
+						average tempUR;
+
+							tempUR.value = (double)(data[b][a+1] + data[b-1][a+1] + data[b-1][a]) / 3;
+							tempUR.rowIndex = a;
+							tempUR.colIndex = b;
+						
+						#pragma omp critical(write)
+						{
+							avgs.push_back(tempUR);
+						}
+					}
+					else if(a!=0&&a!=cols-1&&b==0){
+						//cout << "ls\t";//left side
+						average tempLS;
+
+							tempLS.value = (double)(data[b][a-1] + data[b+1][a-1] + data[b+1][a] + data[b+1][a+1] + data[b][a+1]) / 5;
+							tempLS.rowIndex = a;
+							tempLS.colIndex = b;
+						#pragma omp critical(write)
+						{
+							avgs.push_back(tempLS);
+						}
+					}
+					else if(a!=0&&a!=cols-1&&b!=0&&b!=cols-1){
+						//cout << "i\t";//interior
+						average tempI;
+
+							tempI.value = (double)(data[b][a-1] + data[b+1][a-1] + data[b+1][a] + data[b+1][a+1] + data[b][a+1] + data[b-1][a+1] + data[b-1][a] + data[b-1][a-1]) / 8;
+							tempI.rowIndex = a;
+							tempI.colIndex = b;
+						
+						#pragma omp critical(write)
+						{
+							avgs.push_back(tempI);
+						}
+					}
+					else if(a!=0&&a!=cols-1&&b==cols - 1){
+						//cout << "rs\t";//right side
+						average tempR;
+
+							tempR.value = (double)(data[b][a-1] + data[b][a+1] + data[b-1][a+1] + data[b-1][a] + data[b-1][a-1]) / 5;
+							tempR.rowIndex = a;
+							tempR.colIndex = b;
+						
+						#pragma omp critical(write)
+						{
+						avgs.push_back(tempR);
+						}
+					}
+					else if(a==rows - 1 && b==0){
+						//cout << "ll\t";//lower left
+						average tempLL;
+
+							tempLL.value = (double)(data[b][a-1] + data[b+1][a-1] + data[b+1][a]) / 3;
+							tempLL.rowIndex = a;
+							tempLL.colIndex = b;
+						
+						#pragma omp critical(write)
+						{	
+							avgs.push_back(tempLL);
+						}
+					}
+					else if(a==rows - 1 && b!=0&&b!=cols-1){
+						//cout << "bs\t";//bottom side
+						average tempBS;
+
+							tempBS.value = (double)(data[b][a-1] + data[b+1][a-1] + data[b+1][a] + data[b-1][a] + data[b-1][a-1]) / 5;
+							tempBS.rowIndex = a;
+							tempBS.colIndex = b;
+						
+						#pragma omp critical(write)
+						{
+							avgs.push_back(tempBS);
+						}
+					}
+					else if(a==rows - 1 && b == cols - 1){
+						//cout << "lr\t";//lower right
+						average tempLS;
+
+							tempLS.value = (double)(data[b][a-1] + data[b-1][a] + data[b-1][a-1]) / 3;
+							tempLS.rowIndex = a;
+							tempLS.colIndex = b;
+						
+						#pragma omp critical(write)
+						{	
+							avgs.push_back(tempLS);
+						}
+					}
+					else{
+						//cout << data[a][b] << " ";
+					}
+				}
+				//cout << endl;
+			}
+	}
+	
+	
+
 	/////////////////////////////////////////////////////////////////////
 	///////////////////////  YOUR CODE HERE       ///////////////////////
-	/*NONTHREADED VERSION*/
-		int maxVal = 0;
-		int avgs[rows][cols];				//Array to hold avg values
+	// ofstream ofs;
+	// ofs.open("TestAverages.txt");
+	// if(!ofs.is_open()){
+	// 	cerr << "Error opening file, try again..." << endl;
+	// 	return -1;
+	// }
+	/*NONTHREADED VERSION, for testing*/
+		//vector<average> avgs;					//Vector for holding averages
+		//int avgs[rows][cols];				//Array to hold avg values
+
 		/*Test code for printing out generated array*/
-		cout << "Datavals array: " << endl;
-		for(int k = 0; k < rows; k++){		//k = row index, m = cols index  (access is data[k][m])
-			for(int m = 0; m < cols; m++){
-				cout << data[k][m] << " ";
-			}
-			cout << endl;
-		}
-		cout << endl;
-		/*Test code for printing neighborhood avg of each cell*/
-		double newArray[rows + 2][ cols + 2];
-
-		cout << "Creating new array... " << endl;
-		for(int a = 0; a < rows + 2; a++){
-			for(int b = 0; b < cols + 2; b++){
-				newArray[a][b] = -1;
-			}
-		}
-		
-		// cout << "New array: " << endl;
-		// for(int c = 0; c < rows + 2; c++){
-		// 	for(int d = 0; d < cols + 2; d++){
-		// 		cout << newArray[c][d] << " ";
+		// cout << "Datavals array: " << endl;
+		// for(int k = 0; k < rows; k++){		//k = row index, m = cols index  (access is data[k][m])
+		// 	for(int m = 0; m < cols; m++){
+		// 		cout << data[k][m] << " ";
 		// 	}
 		// 	cout << endl;
 		// }
+		// cout << endl;
 		
-
-		cout << "Filling new array... " << endl;
-		for(int e = 1; e < rows + 1; e++){
-			for(int f = 1; f < cols + 1; f++){
-				newArray[e][f] = data[e - 1][f - 1];
-			}
-		}
-
-		// cout << "New array: " << endl;
-		// for(int c = 0; c < rows + 2; c++){
-		// 	for(int d = 0; d < cols + 2; d++){
-		// 		cout << newArray[c][d] << " ";
+		// cout << "Printing edge status of each node: " << endl;
+		// for(int a = 0; a < rows; a++){
+		// 	for(int b = 0; b < cols; b++){
+		// 		if(a%(rows - 1) == 0 && b%(cols - 1) == 0){
+		// 			cout << "c ";						//corner node
+		// 		}
+		// 		else if(a==0 || a == rows - 1 || b == 0 || b == cols - 1){
+		// 			cout << "s ";						//side nodes
+		// 		}
+				
+		// 		else{
+		// 			cout << "i ";						//interior node
+		// 		}
 		// 	}
 		// 	cout << endl;
 		// }
+		// cout << endl;
 
-		cout << "Printing just the datavals from new array: " << endl;
-		for(int e = 1; e < rows + 1; e++){
-			for(int f = 1; f < cols + 1; f++){
-				cout << data[e - 1][f - 1] << " ";
-			}
-			cout << endl;
-		}
+		//cout << "Printing averages of each node: " << endl;
+		//cout << endl;
 
-		cout << "Printing edge status of each cell: " << endl;
-		for(int e = 1; e < rows + 1; e++){
-			for(int f = 1; f < cols + 1; f++){
-				if(newArray[e-1][f+1] == -1 && newArray[e][f+1] != -1 					/*<-----------The comparisons start at newArray[e-1][f+1], which is the node's upper right neighbor, and continues clockwise*/
-				    && newArray[e+1][f+1] != -1 && newArray[e+1][f] != -1 
-					&& newArray[e+1][f-1] == -1 && newArray[e][f-1] == -1 
-					&& newArray[e-1][f-1] == -1 && newArray[e-1][f] == -1){	//Upper-left edge node	(CORRECT)
-					cout << "ul" << " ";
-				}
-				else if(newArray[e-1][f+1] == -1 && newArray[e][f+1] != -1 
-				    && newArray[e+1][f+1] != -1 && newArray[e+1][f] != -1 
-					&& newArray[e+1][f-1] != -1 && newArray[e][f-1] != -1 
-					&& newArray[e-1][f-1] == -1 && newArray[e-1][f] == -1){	//upper edge (CORRECT)
-					cout << "up" << " ";
-				}
-				else if(newArray[e-1][f+1] == -1 && newArray[e][f+1] == -1 
-				    && newArray[e+1][f+1] == -1 && newArray[e+1][f] != -1 
-					&& newArray[e+1][f-1] != -1 && newArray[e][f-1] != -1 
-					&& newArray[e-1][f-1] == -1 && newArray[e-1][f] == -1){	//Upper-right edge node (CORRECT)
-					cout << "ur" << " ";
-				}
-				else if(newArray[e-1][f+1] != -1 && newArray[e][f+1] != -1 
-				    && newArray[e+1][f+1] != -1 && newArray[e+1][f] != -1 
-					&& newArray[e+1][f-1] == -1 && newArray[e][f-1] == -1 
-					&& newArray[e-1][f-1] == -1 && newArray[e-1][f] != -1){	//left edge (CORRECT)
-					cout << "le" << " ";
-				}
-				else if(newArray[e+1][f] != -1 && newArray[e+1][f+1] != -1 
-				        && newArray[e][f+1] != -1 && newArray[e-1][f+1] != -1 
-						&& newArray[e-1][f] != -1 && newArray[e-1][f-1] != -1 
-						&& newArray[e][f-1] != -1 && newArray[e+1][f] != -1){	//Interior node	(CORRECT)
-					cout << "in" << " ";
-				}
-				else if(newArray[e][f+1] == -1){	//right edge	FIXME: left off here (changing if/else comparisons to label cells more accurately.)
-					cout << "ri" << " ";
-				}
-				else if(newArray[e+1][f-1] == -1 && newArray[e][f-1] == -1 && newArray[e+1][f] == -1){	//lower-left edge node
-					cout << "ll" << " ";
-				}
-				else if(newArray[e+1][f] == -1){	//lower edge
-					cout << "lo" << " ";
-				}
-				else if(newArray[e-1][f-1] == -1 && newArray[e][f-1] == -1 && newArray[e-1][f] == -1){	//lower-right edge node
-					cout << "lr" << " ";
-				}
-			}
-			cout << endl;
-		}
-
-		// for(int){
-		// 	for(){
-
-		// 	}
+		// cout << "Printing vector of averages: " << endl;
+		// for(int i = 0; i < avgs.size(); i++){
+		// 	cout << "Number of nodes printed: " << i + 1 << endl
+		// 	     << "Value: " <<  avgs[i].value << endl
+		// 	     << "Index: " << "data[" << avgs[i].rowIndex << "][" << avgs[i].colIndex << "]" << endl << endl; 
 		// }
 
+		cout << endl
+		     << "largest average: ";
+		average max = avgs[0];
+		for(int i = 0; i < avgs.size(); i++){
+			if(avgs[i].value >= max.value){
+				max = avgs[i];
+			}
+			else{
+				max = max;
+			}
+		}
+		cout << max.value << endl 
+		     << "found at cells: (" << max.rowIndex << ", " << max.colIndex << ")" 
+			 << endl << endl;
 
-	/*END OF NONTHREADED VERSION*/
+		// for(int i = 0; i < avgs.size(); i++){
+		// 	ofs << "Node " << i+1 << ": " << endl
+		// 	    << avgs[i].value << endl << endl;
+		// }
+
 	/////////////////////////////////////////////////////////////////////
     cout << "ASDFGASDFSADF"<<endl;
 	
@@ -316,5 +407,11 @@ int main( int argc, char* argv[] )
 	
 	cerr << "elapsed time: " << S1.getTime( ) << endl;
 }
+
+/*Notes:
+
+corners at indexes [0][0], [0][cols], [rows][0], [rows][cols]
+
+*/
 
 
